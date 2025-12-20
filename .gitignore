@@ -28,3 +28,5 @@ agent_logs/
 conversation_logs/
 
 venv/
+
+*.db
