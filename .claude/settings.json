@@ -1,0 +1,35 @@
+{
+  "env": {
+    "CLAUDE_CODE_MAX_OUTPUT_TOKENS": "64000",
+    "MAX_THINKING_TOKENS": "31999"
+  },
+  "permissions": {
+    "allow": [
+      "Bash(make compile:*)",
+      "Bash(sbt compile)",
+      "Bash(cat:*)",
+      "Bash(git:*)",
+      "Bash(chmod:*)",
+      "Bash(sbt:*)",
+      "Bash(mkdir:*)",
+      "Bash(source venv/bin/activate)",
+      "Bash(python:*)",
+      "Bash(make:*)",
+      "Bash(opam --version:*)",
+      "Bash(curl:*)",
+      "Bash(dune build:*)",
+      "Bash(timeout 5 dune exec:*)",
+      "Bash(rabbitmqctl status:*)",
+      "Bash(brew services:*)",
+      "Bash(docker logs:*)",
+      "Bash(dune exec:*)",
+      "Bash(timeout 30 curl:*)",
+      "Bash(tree:*)"
+    ],
+    "deny": [
+	    "Bash(rm -rf:*)",
+	    "Bash(sudo:*)"
+    ],
+    "ask": []
+  }
+}
