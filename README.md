@@ -15,10 +15,23 @@ A type-safe, distributed multi-agent LLM pipeline system written in Scala 3 with
 
 ### Prerequisites
 
-- JDK 11+
-- sbt 1.9+
-- Docker (for RabbitMQ)
-- Ollama running locally
+| Requirement | Version | Purpose |
+|-------------|---------|---------|
+| JDK | 11+ | Scala runtime |
+| sbt | 1.9+ | Build tool |
+| Docker | any | RabbitMQ container |
+| Ollama | any | Local LLM inference |
+| Python | 3.x | Code execution tool |
+
+### Required Ollama Model
+
+The framework uses `bielik_v3_4_5B_instruct_Q_8` by default. Pull it before running:
+
+```bash
+ollama pull bielik_v3_4_5B_instruct_Q_8
+```
+
+> **Note:** To use a different model, update `Config.Ollama.defaultModel` in `common/src/main/scala/com/llmagent/common/Config.scala`
 
 ### Build
 
@@ -32,8 +45,8 @@ make
 # Start RabbitMQ (runs in background)
 make rabbit
 
-# Ensure Ollama is running with your model
-ollama run llama3.2
+# Verify Ollama is running
+curl http://localhost:11434/api/tags
 ```
 
 ### Running the Distributed Pipeline
