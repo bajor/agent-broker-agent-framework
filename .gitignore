@@ -1,0 +1,30 @@
+# macOS
+.DS_Store
+
+# Scala / sbt
+target/
+*.class
+*.log
+*.jar
+*.war
+project/project/
+project/target/
+.bsp/
+.scala-build/
+metals.sbt
+.metals/
+.bloop/
+project/
+*/target/*
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# Project
+logs/
+agent_logs/
+conversation_logs/
+
+venv/
