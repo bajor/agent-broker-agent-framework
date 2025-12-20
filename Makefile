@@ -12,25 +12,25 @@ compile: build
 submit: build
 	sbt "submit/run"
 
-# ============ Distributed Agent Runners ============
+# ============ Distributed Agent Runners (DSL-based) ============
 # Each agent runs as a separate service listening on RabbitMQ
 
 run-preprocessor: build
-	sbt "runners/runMain com.llmagent.runners.PreprocessorRunner"
+	sbt "examples/runMain com.llmagent.examples.PreprocessorMain"
 
 run-codegen: build
-	sbt "runners/runMain com.llmagent.runners.CodeGenRunner"
+	sbt "examples/runMain com.llmagent.examples.CodeGenMain"
 
 run-explainer: build
-	sbt "runners/runMain com.llmagent.runners.ExplainerRunner"
+	sbt "examples/runMain com.llmagent.examples.ExplainerMain"
 
 run-refiner: build
-	sbt "runners/runMain com.llmagent.runners.RefinerRunner"
+	sbt "examples/runMain com.llmagent.examples.RefinerMain"
 
 # Send a prompt to the distributed pipeline
 # Usage: make send-prompt PROMPT=prime
 send-prompt: build
-	sbt "runners/runMain com.llmagent.runners.UserSubmit $(PROMPT)"
+	sbt "examples/runMain com.llmagent.examples.UserSubmit $(PROMPT)"
 
 # Launch all agents in distributed mode
 distributed: build
@@ -53,7 +53,6 @@ clean:
 	rm -rf project/target/
 	rm -rf common/target/
 	rm -rf submit/target/
-	rm -rf pipeline/target/
 	rm -rf tools/target/
-	rm -rf agents/target/
-	rm -rf runners/target/
+	rm -rf dsl/target/
+	rm -rf examples/target/

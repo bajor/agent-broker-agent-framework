@@ -33,13 +33,6 @@ lazy val tools = (project in file("tools"))
     name := "llm-agent-tools"
   )
 
-lazy val pipeline = (project in file("pipeline"))
-  .dependsOn(common, tools)
-  .settings(
-    commonSettings,
-    name := "llm-agent-pipeline"
-  )
-
 lazy val dsl = (project in file("dsl"))
   .dependsOn(common, tools)
   .settings(
@@ -55,13 +48,6 @@ lazy val submit = (project in file("submit"))
     Compile / mainClass := Some("com.llmagent.submit.Main")
   )
 
-lazy val runners = (project in file("runners"))
-  .dependsOn(common, tools, pipeline)
-  .settings(
-    commonSettings,
-    name := "llm-runners"
-  )
-
 lazy val examples = (project in file("examples"))
   .dependsOn(common, tools, dsl)
   .settings(
@@ -70,7 +56,7 @@ lazy val examples = (project in file("examples"))
   )
 
 lazy val root = (project in file("."))
-  .aggregate(common, tools, pipeline, dsl, submit, runners, examples)
+  .aggregate(common, tools, dsl, submit, examples)
   .settings(
     name := "llm-agent"
   )

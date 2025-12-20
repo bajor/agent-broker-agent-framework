@@ -10,7 +10,7 @@ make test         # Run tests
 make distributed  # Launch all agents in distributed mode (via run-distributed.sh)
 make send-prompt PROMPT=prime  # Send a prompt to the distributed pipeline
 
-# Individual agent runners
+# Individual agent runners (DSL-based)
 make run-preprocessor  # Run the Preprocessor agent
 make run-codegen       # Run the CodeGen agent
 make run-explainer     # Run the Explainer agent
@@ -28,7 +28,7 @@ make clean        # Clean all build artifacts
 
 ## Architecture Overview
 
-This is a multi-agent LLM pipeline system with typed agent-to-agent communication via RabbitMQ.
+This is a multi-agent LLM pipeline system with typed agent-to-agent communication via RabbitMQ. All agents are built using the type-safe DSL.
 
 ### Module Dependency Graph
 
@@ -36,8 +36,8 @@ This is a multi-agent LLM pipeline system with typed agent-to-agent communicatio
 common (foundation types, config, logging, RabbitMQ, A2A protocol, ZIO, zio-json)
   ├── tools (LlmTool, PythonExecutorTool)
   ├── submit (submit CLI)
-  └── pipeline (Preprocessor, Refiner, GuardedRefiner)
-      └── runners (PreprocessorRunner, CodeGenRunner, ExplainerRunner, RefinerRunner)
+  └── dsl (Agent Pipeline DSL - AgentBuilder, Process, PipelineStep)
+      └── examples (PreprocessorMain, CodeGenMain, ExplainerMain, RefinerMain, UserSubmit)
 ```
 
 ### Core Flow (Distributed)
@@ -45,32 +45,70 @@ common (foundation types, config, logging, RabbitMQ, A2A protocol, ZIO, zio-json
 Each agent runs independently as a separate process, communicating via RabbitMQ queues:
 
 ```
-UserSubmit → [RabbitMQ] → PreprocessorRunner → [RabbitMQ] → CodeGenRunner
-                                                                   ↓
-                              [Console Output] ← RefinerRunner ← ExplainerRunner
+UserSubmit → [RabbitMQ] → Preprocessor → [RabbitMQ] → CodeGen
+                                                          ↓
+                            [Console Output] ← Refiner ← Explainer
 ```
 
 Queue naming: `agent_<agentName>_tasks` (derived from AgentNames)
 
 ### Key Abstractions
 
-**Agent** (`common/src/main/scala/com/llmagent/common/Agent.scala`):
-- `AgentDef[I, O]` - Base agent with typed input/output
-- `ToolAgent[I, O]` - Agent with tool support, two-phase execution (tool phase + summarize phase)
-- `ToolPhaseContext` - Tracks tool executions with reflection support (max 3 retries on failure)
+#### Agent DSL (`dsl/src/main/scala/com/llmagent/dsl/`)
 
-**A2A Protocol Types** (`common/src/main/scala/com/llmagent/common/`):
-- `AgentTypes.scala` - Core message types: `UserInput`, `AgentInput`, `AgentOutput`, `UserOutput`, `ExecutionStats`
-- `A2AJson.scala` - JSON serialization using zio-json with `A2AEnvelope` for RabbitMQ messages
+The DSL provides a type-safe, functional way to define agent pipelines:
+
+**Process** (`Process.scala`):
+- Composable transformation units that chain via `>>>`
+- Constructors: `Process.pure`, `Process.effect`, `Process.withLlm`, `Process.withTool`
+- Built-in reflection/retry support via `MaxReflections`
+
+```scala
+val pipeline = InitState >>> GenerateCode >>> ExecuteCode >>> Summarize
+```
+
+**AgentBuilder** (`AgentBuilder.scala`):
+- Phantom-typed builder ensuring compile-time correctness
+- `HasInput`/`HasOutput` phantom types enforce `readFrom`/`writeTo` called exactly once
+- `.build` only compiles when both are configured
+
+```scala
+Agent("MyAgent")
+  .readFrom(inputQueue, decoder)    // Transitions No → Yes for input
+  .process(myPipeline)
+  .writeTo(outputQueue, encoder)    // Transitions No → Yes for output
+  .build                            // Only valid when both are Yes
+```
+
+**PipelineStep** (`PipelineStep.scala`):
+- Kleisli arrow abstraction for composing effectful steps
+- Threads `PipelineContext` through the pipeline
+- Automatic logging integration
+
+**Types** (`Types.scala`):
+- Opaque types: `SourceQueue`, `DestQueue`, `MaxReflections`, `TraceId`
+- ADTs: `PipelineResult` (Success/Failure/Rejected), `PromptSource`, `StepLog`
+- `PipelineContext` - Immutable context with conversation ID, trace ID, step logs
+
+**AgentRuntime** (`AgentRuntime.scala`):
+- RabbitMQ integration for running agents
+- Conversation ID propagation via A2A envelope
+- Fiber-per-message parallelism
+
+#### Core Types (`common/src/main/scala/com/llmagent/common/`)
+
+**Agent.scala** - Foundation types:
+- `AgentId` - Opaque type for agent identification
+- `Tool[I, O]` - Trait for tool implementations
+- `ToolResult[T]` - ADT for Success/Failure
+
+**A2A Protocol Types**:
+- `AgentTypes.scala` - Core message types: `UserInput`, `AgentInput`, `AgentOutput`, `UserOutput`
+- `A2AJson.scala` - JSON serialization using zio-json with `A2AEnvelope`
 - `AgentNames.scala` - Single source of truth for agent names (preprocessor, codegen, explainer, refiner)
-- `RunnerInfra.scala` - ZIO-based infrastructure for distributed runners with fiber-per-message parallelism
 
-**Runners** (`runners/src/main/scala/com/llmagent/runners/`):
-- Each runner extends `ZIOAppDefault` with its own `main`
-- Uses `RunnerInfra.runAgent()` for RabbitMQ message handling
-- Spawns a fiber per message for parallel processing
+#### Tools (`tools/src/main/scala/com/llmagent/tools/`)
 
-**Tools** (`tools/src/main/scala/com/llmagent/tools/`):
 - `Tool[I, O]` trait with `ToolResult.Success` / `ToolResult.Failure`
 - `LlmTool` - Calls Ollama with observability logging
 - `PythonExecutorTool` - Executes Python code in subprocess with timeout
@@ -94,11 +132,50 @@ Uses **zio-json** for type-safe, compile-time derived JSON codecs:
 
 ### Type-Level Design Patterns
 
-The codebase uses opaque types extensively to make invalid states unrepresentable:
-- `TaskId`, `AgentId`, `ConversationId`, `PromptId`, etc.
+The codebase uses advanced Scala 3 type features to make invalid states unrepresentable:
+
+**Opaque Types**:
+- `AgentId`, `TaskId`, `ConversationId`, `PromptId`, `SourceQueue`, `DestQueue`
 - Validated constructors (e.g., `Port.apply` returns `Option[Port]`)
-- ADTs for exhaustive matching (`ResultStatus`, `GuardrailResult`, `ToolResult`)
-- Semantic types like `Retries` and `ReflectionCount` prevent mixing different counters
+- Semantic types like `MaxReflections` prevent mixing incompatible values
+
+**Phantom Types**:
+- `AgentBuilder[I <: HasInput, O <: HasOutput, In, Out]` tracks builder state
+- `BuilderState.Yes`/`No` encode whether `readFrom`/`writeTo` were called
+- `.build` requires `I =:= Yes` and `O =:= Yes` evidence
+
+**ADTs for Exhaustive Matching**:
+- `GuardrailResult`, `ToolResult`, `PipelineResult`
+
+**Kleisli Composition**:
+- `Process` and `PipelineStep` compose via `>>>` operator
+- Railway-oriented programming for error handling
+
+## Creating New Agents
+
+1. Define your processes:
+```scala
+val MyProcess = Process.withLlm[Input, Output](
+  "MyProcess",
+  buildPrompt = (input, ctx) => s"...",
+  parseResponse = (input, response, ctx) => ...
+)
+```
+
+2. Build the agent:
+```scala
+val agent = Agent("MyAgent")
+  .readFrom(SourceQueue.fromAgentName("upstream"), decoder)
+  .process(Process1 >>> Process2 >>> Process3)
+  .writeTo(DestQueue.fromAgentName("downstream"), encoder)
+  .build
+```
+
+3. Run with `AgentRuntime`:
+```scala
+object MyAgentMain extends ZIOAppDefault:
+  override def run = AgentRuntime.run(agent)
+```
 
 ## Prerequisites
 

@@ -1,4 +1,4 @@
-package com.llmagent.runners
+package com.llmagent.examples
 
 import com.llmagent.common.*
 import com.llmagent.common.Agent.AgentId
@@ -93,7 +93,7 @@ object UserSubmit extends ZIOAppDefault:
         ids <- submitPrompt(channel, prompt)
         (conversationId, traceId) = ids
         _ <- ZIO.succeed {
-          println(s"\nSubmitted successfully!\n\n  Conversation ID: ${conversationId.convIdValue}\n  Trace ID:        $traceId\n  Target Queue:    $inputQueue\n\nWatch the RefinerRunner output for the final response.\n$sep\n")
+          println(s"\nSubmitted successfully!\n\n  Conversation ID: ${conversationId.convIdValue}\n  Trace ID:        $traceId\n  Target Queue:    $inputQueue\n\nWatch the RefinerMain output for the final response.\n$sep\n")
           RabbitMQ.close(connection, channel)
         }
       yield ExitCode.success).catchAll { e =>
