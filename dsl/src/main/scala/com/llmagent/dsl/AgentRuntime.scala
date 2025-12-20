@@ -5,8 +5,10 @@ import zio.json.*
 import com.llmagent.dsl.Types.*
 import com.llmagent.common.{RabbitMQ, Logging, A2AJson}
 import com.llmagent.common.observability.Types as ObsTypes
-import com.llmagent.common.observability.ConversationLogger
+import com.llmagent.common.observability.{ConversationLogger, Types as ObsLogTypes}
+import com.llmagent.common.Types.LatencyMs
 import com.rabbitmq.client.{Channel, Connection}
+import java.time.Instant
 
 /**
  * Runtime infrastructure for executing AgentDefinitions.
@@ -171,6 +173,7 @@ object AgentRuntime:
    * 1. Used for all logging in this agent (agent_logs/{convId}_{agentName}.jsonl)
    * 2. Passed to the pipeline context for step-level logging
    * 3. Propagated to the output envelope for downstream agents
+   * 4. Used for conversation-level logging (conversation_logs/{convId}.jsonl)
    */
   private def processMessage[In, Out](
     channel: Channel,
@@ -180,6 +183,8 @@ object AgentRuntime:
     systemConvId: ObsTypes.ConversationId
   ): ZIO[Any, Nothing, Unit] =
     val process: ZIO[Any, Throwable, Unit] = for
+      startTime <- Clock.currentTime(java.util.concurrent.TimeUnit.MILLISECONDS)
+
       // Decode the A2A envelope - this contains the conversation ID
       envelope <- ZIO.fromOption(A2AJson.decodeEnvelope(body))
         .mapError(_ => new RuntimeException("Failed to parse A2A envelope"))
@@ -196,9 +201,32 @@ object AgentRuntime:
 
       // Extract payload JSON as string for the agent's decoder
       payloadJson = envelope.payload.toString
+      inputSummary = summarize(payloadJson, 500)
 
       // Execute the pipeline with the conversation context
       result <- agent.executeFromMessage(payloadJson, traceId, convId)
+
+      endTime <- Clock.currentTime(java.util.concurrent.TimeUnit.MILLISECONDS)
+      latency = LatencyMs(endTime - startTime)
+
+      // Build output summary based on result
+      outputSummary = result match
+        case PipelineResult.Success(out, _) => summarize(agent.encoder(out), 500)
+        case PipelineResult.Failure(err, _) => s"FAILURE: $err"
+        case PipelineResult.Rejected(g, r, _) => s"REJECTED by $g: $r"
+
+      // Log to conversation_logs/ for cross-agent visibility
+      _ = logAgentActivity(
+        convId = convId,
+        agentName = agent.name,
+        phase = "process",
+        inputSummary = inputSummary,
+        outputSummary = outputSummary,
+        latency = latency,
+        error = result match
+          case PipelineResult.Failure(e, _) => Some(e)
+          case _ => None
+      )
 
       // Log the result - goes to the same agent log file
       _ = logResult(result, agent.name, convId)
@@ -361,3 +389,39 @@ object AgentRuntime:
   ): ZIO[Any, Nothing, PipelineResult[Out]] =
     val convId = ObsTypes.ConversationId.generate()
     executeOnce(agent, input, convId)
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // CONVERSATION LOGGING HELPERS
+  // ════════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Log agent activity to conversation_logs/ for cross-agent visibility.
+   * This ensures ALL agents appear in conversation logs, not just those making LLM calls.
+   */
+  private def logAgentActivity(
+    convId: ObsTypes.ConversationId,
+    agentName: String,
+    phase: String,
+    inputSummary: String,
+    outputSummary: String,
+    latency: LatencyMs,
+    error: Option[String]
+  ): Unit =
+    val log = ObsLogTypes.AgentActivityLog(
+      id = ObsLogTypes.ExchangeId.generate(),
+      conversationId = convId,
+      agentId = agentName,
+      agentType = "dsl-agent",
+      phase = phase,
+      inputSummary = inputSummary,
+      outputSummary = outputSummary,
+      latencyMs = latency,
+      error = error,
+      timestamp = Instant.now()
+    )
+    ConversationLogger.logAgentActivity(log)
+
+  /** Summarize a string to a maximum length, adding ellipsis if truncated */
+  private def summarize(s: String, maxLen: Int): String =
+    if s.length <= maxLen then s
+    else s.take(maxLen - 3) + "..."
