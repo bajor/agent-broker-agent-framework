@@ -3,7 +3,8 @@ package com.llmagent.common
 import java.io.{File, FileWriter, PrintWriter}
 import java.time.{Instant, LocalDateTime}
 import java.time.format.DateTimeFormatter
-import scala.util.Using
+import scala.util.{Try, Using}
+import scala.annotation.tailrec
 import zio.json.*
 import com.llmagent.common.observability.Types.ConversationId
 import com.llmagent.common.observability.Types.ConversationId.given
@@ -76,6 +77,29 @@ object Logging:
     val f = new File(dir)
     if !f.exists() then f.mkdirs()
 
+  /** Retry configuration for file operations */
+  private val maxRetries = 5
+  private val initialDelayMs = 50
+  private val maxDelayMs = 500
+
+  /** Execute a file operation with retry logic for handling file locks.
+    * Uses exponential backoff between retries.
+    */
+  @tailrec
+  private def withRetry[A](operation: => A, attempt: Int = 1, lastError: Option[Throwable] = None): Option[A] =
+    if attempt > maxRetries then
+      lastError.foreach { e =>
+        System.err.println(s"[Logging] Failed to write to log file after $maxRetries attempts: ${e.getMessage}")
+      }
+      None
+    else
+      Try(operation) match
+        case scala.util.Success(result) => Some(result)
+        case scala.util.Failure(error) =>
+          val delayMs = math.min(initialDelayMs * math.pow(2, attempt - 1).toInt, maxDelayMs)
+          Thread.sleep(delayMs)
+          withRetry(operation, attempt + 1, Some(error))
+
   private def agentLogFilePath(conversationId: ConversationId, agentName: String): String =
     import ConversationId.value
     val sanitizedAgentName = agentName.replaceAll("[^a-zA-Z0-9_-]", "_")
@@ -116,15 +140,19 @@ object Logging:
   private def appendToAgentLog(conversationId: ConversationId, agentName: String, jsonLine: String): Unit =
     ensureDirExists(agentLogsDir)
     val filePath = agentLogFilePath(conversationId, agentName)
-    Using.resource(new PrintWriter(new FileWriter(filePath, true))) { writer =>
-      writer.println(jsonLine)
+    withRetry {
+      Using.resource(new PrintWriter(new FileWriter(filePath, true))) { writer =>
+        writer.println(jsonLine)
+      }
     }
 
   private def appendToConversationLog(conversationId: ConversationId, jsonLine: String): Unit =
     ensureDirExists(conversationLogsDir)
     val filePath = conversationLogFilePath(conversationId)
-    Using.resource(new PrintWriter(new FileWriter(filePath, true))) { writer =>
-      writer.println(jsonLine)
+    withRetry {
+      Using.resource(new PrintWriter(new FileWriter(filePath, true))) { writer =>
+        writer.println(jsonLine)
+      }
     }
 
   /** Log an info message for an agent - writes to agent_logs/{conversationId}_{agentName}.jsonl */
