@@ -1,0 +1,34 @@
+# CodeQL Configuration
+# Documentation: https://docs.github.com/en/code-security/code-scanning/creating-an-advanced-setup-for-code-scanning/customizing-your-advanced-setup-for-code-scanning
+
+name: "agent-broker-codeql-config"
+
+# Use extended security queries for comprehensive analysis
+queries:
+  - uses: security-extended
+  - uses: security-and-quality
+
+# Paths to exclude from analysis
+paths-ignore:
+  # Virtual environment (Python dependencies)
+  - venv/**
+  - .venv/**
+  # Build outputs
+  - target/**
+  - project/target/**
+  # Test fixtures and data
+  - "**/test-data/**"
+  - "**/testdata/**"
+  # Generated files
+  - "**/*.min.js"
+
+# Paths to explicitly include (optional, for clarity)
+paths:
+  # Scala source code
+  - common/src/**
+  - dsl/src/**
+  - tools/src/**
+  - submit/src/**
+  - examples/src/**
+  # Python utility scripts
+  - scripts/**
