@@ -43,6 +43,11 @@ jobs:
           distribution: 'temurin'
           cache: 'sbt'
 
+      # Install sbt (not included with setup-java)
+      - name: Set up sbt
+        if: matrix.language == 'java-kotlin'
+        uses: sbt/setup-sbt@v1
+
       # Initialize CodeQL
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v4
