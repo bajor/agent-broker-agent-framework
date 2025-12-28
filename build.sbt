@@ -4,13 +4,23 @@ ThisBuild / version := "0.1.0"
 ThisBuild / scalaVersion := "3.3.1"
 ThisBuild / organization := "com.llmagent"
 
+val zioVersion = "2.0.21"
+
+lazy val testDependencies = Seq(
+  "dev.zio" %% "zio-test"          % zioVersion % Test,
+  "dev.zio" %% "zio-test-sbt"      % zioVersion % Test,
+  "dev.zio" %% "zio-test-magnolia" % zioVersion % Test
+)
+
 lazy val commonSettings = Seq(
   scalacOptions ++= Seq(
     "-deprecation",
     "-feature",
     "-unchecked",
     "-Xfatal-warnings"
-  )
+  ),
+  libraryDependencies ++= testDependencies,
+  testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework")
 )
 
 lazy val common = (project in file("common"))

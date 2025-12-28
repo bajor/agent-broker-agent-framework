@@ -83,18 +83,19 @@ final class PythonExecutorTool extends Tool[PythonInput, PythonOutput]:
 
     val completed = process.waitFor(timeoutSeconds.toLong, TimeUnit.SECONDS)
 
-    val stdout = readAll(stdoutReader)
-    val stderr = readAll(stderrReader)
-
-    stdoutReader.close()
-    stderrReader.close()
-
     val executionTimeMs = System.currentTimeMillis() - startTime
 
     if !completed then
+      // On timeout, destroy process first to avoid blocking on stream reads
       process.destroyForcibly()
-      PythonOutput(stdout, "Execution timed out", -1, executionTimeMs)
+      Try(stdoutReader.close())
+      Try(stderrReader.close())
+      PythonOutput("", "Execution timed out", -1, executionTimeMs)
     else
+      val stdout = readAll(stdoutReader)
+      val stderr = readAll(stderrReader)
+      stdoutReader.close()
+      stderrReader.close()
       PythonOutput(stdout, stderr, process.exitValue(), executionTimeMs)
 
   private def readAll(reader: BufferedReader): String =
