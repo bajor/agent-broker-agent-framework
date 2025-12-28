@@ -2,28 +2,20 @@ package com.llmagent.examples
 
 import zio.json.*
 import com.llmagent.dsl.Types.{SourceQueue, DestQueue}
-import com.llmagent.common.{AgentInput, AgentOutput, UserInput, UserOutput}
+import com.llmagent.common.{AgentInput, AgentOutput, AgentNames, UserInput, UserOutput}
 
 /**
- * Pipeline definition - agent names (defined once) and type mappings.
+ * Pipeline definition - type mappings for each agent.
  *
  * == Pipeline Flow ==
  *
  * {{{
  *   UserSubmit ─▶ Preprocessor ─▶ CodeGen ─▶ Explainer ─▶ Refiner (terminal)
  * }}}
+ *
+ * Agent names are defined in [[com.llmagent.common.AgentNames]] (single source of truth).
  */
 object Pipeline:
-
-  // ════════════════════════════════════════════════════════════════════════════
-  // AGENT NAMES - Defined once, used everywhere
-  // ════════════════════════════════════════════════════════════════════════════
-
-  object AgentName:
-    val Preprocessor = "preprocessor"
-    val CodeGen = "codegen"
-    val Explainer = "explainer"
-    val Refiner = "refiner"
 
   // ════════════════════════════════════════════════════════════════════════════
   // TYPE DEFINITIONS - What each agent receives and produces

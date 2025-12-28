@@ -3,8 +3,8 @@ package com.llmagent.examples
 import zio.*
 import com.llmagent.dsl.*
 import com.llmagent.dsl.Types.*
-import com.llmagent.examples.Pipeline.{AgentName, PreprocessorTypes, inputQueue, outputQueue}
-import com.llmagent.common.AgentInput
+import com.llmagent.examples.Pipeline.{PreprocessorTypes, inputQueue, outputQueue}
+import com.llmagent.common.{AgentInput, AgentNames}
 
 /**
  * Preprocessor Agent Runner
@@ -30,14 +30,14 @@ object PreprocessorMain extends ZIOAppDefault:
     }
 
   val agent: AgentDefinition[PreprocessorTypes.Input, PreprocessorTypes.Output] =
-    Agent(AgentName.Preprocessor)
+    Agent(AgentNames.preprocessor)
       .readFrom(
-        inputQueue(AgentName.Preprocessor),
+        inputQueue(AgentNames.preprocessor),
         PreprocessorTypes.decodeInput
       )
       .process(CleanInput)
       .writeTo(
-        outputQueue(AgentName.CodeGen),  // Output goes to CodeGen
+        outputQueue(AgentNames.codegen),  // Output goes to CodeGen
         PreprocessorTypes.encodeOutput
       )
       .build

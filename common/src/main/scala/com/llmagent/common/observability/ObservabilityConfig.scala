@@ -9,6 +9,9 @@ object ObservabilityConfig {
   }
 
   object Logs {
-    val directory: String = "conversation_logs"
+    val conversationDirectory: String = "conversation_logs"
+    val agentDirectory: String = "agent_logs"
+    // Alias for backward compatibility
+    val directory: String = conversationDirectory
   }
 }

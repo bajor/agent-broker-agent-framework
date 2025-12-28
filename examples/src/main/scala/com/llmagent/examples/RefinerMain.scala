@@ -3,8 +3,8 @@ package com.llmagent.examples
 import zio.*
 import com.llmagent.dsl.*
 import com.llmagent.dsl.Types.*
-import com.llmagent.examples.Pipeline.{AgentName, RefinerTypes, inputQueue}
-import com.llmagent.common.{UserOutput, ExecutionStats}
+import com.llmagent.examples.Pipeline.{RefinerTypes, inputQueue}
+import com.llmagent.common.{AgentNames, UserOutput, ExecutionStats}
 
 /**
  * Refiner Agent Runner (Terminal)
@@ -32,9 +32,9 @@ object RefinerMain extends ZIOAppDefault:
     }
 
   val agent: AgentDefinition[RefinerTypes.Input, RefinerTypes.Output] =
-    Agent(AgentName.Refiner)
+    Agent(AgentNames.refiner)
       .readFrom(
-        inputQueue(AgentName.Refiner),
+        inputQueue(AgentNames.refiner),
         RefinerTypes.decodeInput
       )
       .process(RefineOutput)

@@ -3,8 +3,8 @@ package com.llmagent.examples
 import zio.*
 import com.llmagent.dsl.*
 import com.llmagent.dsl.Types.*
-import com.llmagent.examples.Pipeline.{AgentName, CodeGenTypes, inputQueue, outputQueue}
-import com.llmagent.common.{AgentOutput, Config}
+import com.llmagent.examples.Pipeline.{CodeGenTypes, inputQueue, outputQueue}
+import com.llmagent.common.{AgentNames, AgentOutput, CodeCleaner, Config}
 import com.llmagent.tools.{LlmTool, PythonExecutorTool, PythonInput, PythonOutput}
 import com.llmagent.common.Agent.ToolResult
 
@@ -59,7 +59,7 @@ Task: ${state.input.taskDescription}
 Generate the Python code:""",
       parseResponse = (state, response, _) =>
         state.copy(
-          generatedCode = cleanCode(response),
+          generatedCode = CodeCleaner.cleanMarkdownCode(response),
           codeGenLatency = java.lang.System.currentTimeMillis() // Approximation, actual latency from LLM
         ),
       model = Config.Ollama.defaultModel,
@@ -72,7 +72,7 @@ Generate the Python code:""",
       processName = "ExecuteCode",
       tool = PythonExecutorTool.instance,
       prepareInput = (state, _) =>
-        PythonInput.unsafe(state.generatedCode, timeoutSeconds = 30),
+        PythonInput.unsafe(state.generatedCode, timeoutSeconds = Config.Python.executionTimeout.value),
       handleOutput = (state, output, _) =>
         state.copy(execResult = Some(output), execLatency = output.executionTimeMs),
       reflections = MaxReflections.unsafe(1)
@@ -106,24 +106,19 @@ ${if error.nonEmpty then s"Error:\n$error" else ""}
       )
     }
 
-  private def cleanCode(response: String): String =
-    response.trim
-      .stripPrefix("```python").stripPrefix("```py").stripPrefix("```")
-      .stripSuffix("```").trim
-
   /** Complete pipeline: Init >>> Generate >>> Execute >>> Summarize */
   val pipeline: Process[CodeGenTypes.Input, CodeGenTypes.Output] =
     InitState >>> GenerateCode >>> ExecuteCode >>> Summarize
 
   val agent: AgentDefinition[CodeGenTypes.Input, CodeGenTypes.Output] =
-    Agent(AgentName.CodeGen)
+    Agent(AgentNames.codegen)
       .readFrom(
-        inputQueue(AgentName.CodeGen),
+        inputQueue(AgentNames.codegen),
         CodeGenTypes.decodeInput
       )
       .process(pipeline)
       .writeTo(
-        outputQueue(AgentName.Explainer),
+        outputQueue(AgentNames.explainer),
         CodeGenTypes.encodeOutput
       )
       .build

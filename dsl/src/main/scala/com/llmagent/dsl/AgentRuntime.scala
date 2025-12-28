@@ -3,7 +3,8 @@ package com.llmagent.dsl
 import zio.*
 import zio.json.*
 import com.llmagent.dsl.Types.*
-import com.llmagent.common.{RabbitMQ, Logging, A2AJson}
+import com.llmagent.common.{Config, RabbitMQ, Logging, A2AJson}
+import com.llmagent.common.Config.{RetryCount, TimeoutSeconds}
 import com.llmagent.common.observability.Types as ObsTypes
 import com.llmagent.common.observability.{ConversationLogger, Types as ObsLogTypes}
 import com.llmagent.common.Types.LatencyMs
@@ -33,12 +34,13 @@ object AgentRuntime:
 
   /**
    * Runtime configuration for an agent.
+   * Uses opaque types for type safety consistency.
    */
   final case class RuntimeConfig(
     prefetchCount: Int = 10,
     pollIntervalMs: Int = 100,
-    connectionRetries: Int = 5,
-    retryDelaySeconds: Int = 2
+    connectionRetries: Config.RetryCount = Config.Timing.maxRetries,
+    retryDelaySeconds: Config.TimeoutSeconds = Config.TimeoutSeconds.unsafe(2)
   )
 
   object RuntimeConfig:
@@ -114,8 +116,8 @@ object AgentRuntime:
         case RabbitMQ.ConnectionResult.Failed(error) =>
           throw new RuntimeException(s"Connection failed: $error")
     }.retry(
-      Schedule.recurs(config.connectionRetries) &&
-      Schedule.spaced(config.retryDelaySeconds.seconds)
+      Schedule.recurs(config.connectionRetries.value) &&
+      Schedule.spaced(Duration.fromScala(config.retryDelaySeconds.toDuration))
     )
 
   private def setupQueues[In, Out](
@@ -314,14 +316,16 @@ object AgentRuntime:
           // Encode rejection as a special payload
           (RejectionPayload(ctx.agentName, guardrail, reason).toJson, "UpstreamRejection")
 
-      // Parse the payload as JSON
-      val payloadJson = zio.json.ast.Json.decoder.decodeJson(outputPayload)
-        .getOrElse(zio.json.ast.Json.Str(outputPayload))
+      // Parse the payload as JSON, with fallback logging
+      val payloadJson = zio.json.ast.Json.decoder.decodeJson(outputPayload) match
+        case Right(json) => json
+        case Left(error) =>
+          Logging.logError(convId, Logging.Source.Agent, agent.name,
+            s"Payload not valid JSON, wrapping as string: $error")
+          zio.json.ast.Json.Str(outputPayload)
 
       // Extract target agent name from queue (e.g., "agent_explainer_tasks" -> "explainer")
-      val toAgent = outputQueue
-        .stripPrefix("agent_")
-        .stripSuffix("_tasks")
+      val toAgent = Config.QueueNaming.fromQueueName(outputQueue)
 
       // Build the output envelope, PRESERVING the original conversation ID and trace ID
       val outputEnvelope = A2AJson.A2AEnvelope(

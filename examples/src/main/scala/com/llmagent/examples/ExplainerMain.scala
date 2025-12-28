@@ -3,8 +3,8 @@ package com.llmagent.examples
 import zio.*
 import com.llmagent.dsl.*
 import com.llmagent.dsl.Types.*
-import com.llmagent.examples.Pipeline.{AgentName, ExplainerTypes, inputQueue, outputQueue}
-import com.llmagent.common.{AgentOutput, Config}
+import com.llmagent.examples.Pipeline.{ExplainerTypes, inputQueue, outputQueue}
+import com.llmagent.common.{AgentNames, AgentOutput, Config}
 
 /**
  * Explainer Agent Runner
@@ -51,14 +51,14 @@ $response""",
     )
 
   val agent: AgentDefinition[ExplainerTypes.Input, ExplainerTypes.Output] =
-    Agent(AgentName.Explainer)
+    Agent(AgentNames.explainer)
       .readFrom(
-        inputQueue(AgentName.Explainer),
+        inputQueue(AgentNames.explainer),
         ExplainerTypes.decodeInput
       )
       .process(GenerateExplanation)
       .writeTo(
-        outputQueue(AgentName.Refiner),
+        outputQueue(AgentNames.refiner),
         ExplainerTypes.encodeOutput
       )
       .build

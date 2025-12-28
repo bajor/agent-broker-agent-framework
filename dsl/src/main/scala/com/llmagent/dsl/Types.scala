@@ -2,6 +2,7 @@ package com.llmagent.dsl
 
 import java.util.UUID
 import zio.json.*
+import com.llmagent.common.Config
 import com.llmagent.common.observability.Types.ConversationId
 import com.llmagent.common.Agent.{AgentId, ToolResult}
 
@@ -31,7 +32,7 @@ object Types:
     def unsafe(name: String): SourceQueue = name
 
     def fromAgentName(agentName: String): SourceQueue =
-      s"agent_${agentName}_tasks"
+      Config.QueueNaming.toQueueName(agentName)
 
     extension (q: SourceQueue)
       def value: String = q
@@ -47,7 +48,7 @@ object Types:
     def unsafe(name: String): DestQueue = name
 
     def fromAgentName(agentName: String): DestQueue =
-      s"agent_${agentName}_tasks"
+      Config.QueueNaming.toQueueName(agentName)
 
     extension (q: DestQueue)
       def value: String = q

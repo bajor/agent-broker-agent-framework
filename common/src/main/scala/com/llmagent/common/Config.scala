@@ -67,3 +67,22 @@ object Config:
   /** Agent configuration */
   object Agent:
     val maxReflections: RetryCount = RetryCount.unsafe(3)
+
+  /** Queue naming convention - centralized to ensure consistency */
+  object QueueNaming:
+    val prefix: String = "agent_"
+    val suffix: String = "_tasks"
+
+    def toQueueName(agentName: String): String = s"$prefix${agentName}$suffix"
+    def fromQueueName(queueName: String): String =
+      queueName.stripPrefix(prefix).stripSuffix(suffix)
+
+  /** Logging configuration */
+  object Logging:
+    val maxRetries: RetryCount = RetryCount.unsafe(5)
+    val initialDelayMs: Int = 50
+    val maxDelayMs: Int = 500
+
+  /** Python execution configuration */
+  object Python:
+    val executionTimeout: TimeoutSeconds = TimeoutSeconds.unsafe(30)

@@ -6,6 +6,8 @@ import java.time.format.DateTimeFormatter
 import scala.util.{Try, Using}
 import scala.annotation.tailrec
 import zio.json.*
+import com.llmagent.common.Config
+import com.llmagent.common.Config.RetryCount
 import com.llmagent.common.observability.Types.ConversationId
 import com.llmagent.common.observability.Types.ConversationId.given
 import com.llmagent.common.observability.Types.given
@@ -46,8 +48,8 @@ object Logging:
     @jsonField("duration_ms") durationMs: Option[Long] = None
   ) derives JsonEncoder, JsonDecoder
 
-  private val conversationLogsDir = ObservabilityConfig.Logs.directory
-  private val agentLogsDir = "agent_logs"
+  private val conversationLogsDir = ObservabilityConfig.Logs.conversationDirectory
+  private val agentLogsDir = ObservabilityConfig.Logs.agentDirectory
   private val timeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss.SSS")
 
   /** Print to console for runtime visibility */
@@ -77,10 +79,10 @@ object Logging:
     val f = new File(dir)
     if !f.exists() then f.mkdirs()
 
-  /** Retry configuration for file operations */
-  private val maxRetries = 5
-  private val initialDelayMs = 50
-  private val maxDelayMs = 500
+  /** Retry configuration for file operations - from centralized Config */
+  private val maxRetries = Config.Logging.maxRetries.value
+  private val initialDelayMs = Config.Logging.initialDelayMs
+  private val maxDelayMs = Config.Logging.maxDelayMs
 
   /** Execute a file operation with retry logic for handling file locks.
     * Uses exponential backoff between retries.
@@ -97,6 +99,8 @@ object Logging:
         case scala.util.Success(result) => Some(result)
         case scala.util.Failure(error) =>
           val delayMs = math.min(initialDelayMs * math.pow(2, attempt - 1).toInt, maxDelayMs)
+          // Note: Intentionally blocking - logging must complete before proceeding
+          // to ensure log entries are written in order and file handles are released
           Thread.sleep(delayMs)
           withRetry(operation, attempt + 1, Some(error))
 

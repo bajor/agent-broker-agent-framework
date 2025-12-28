@@ -240,15 +240,12 @@ final case class AgentDefinition[In, Out](
   decoder: String => Either[String, In],
   encoder: Out => String
 ):
-  import SourceQueue.value as sqValue
-  import DestQueue.value as dqValue
-
   /** Check if this is a terminal agent (no output queue) */
   def isTerminal: Boolean = outputQueue.isEmpty
 
   /** Get the queue names for RabbitMQ setup */
-  def inputQueueName: String = inputQueue.sqValue
-  def outputQueueName: Option[String] = outputQueue.map(_.dqValue)
+  def inputQueueName: String = inputQueue.value
+  def outputQueueName: Option[String] = outputQueue.map(_.value)
 
   /**
    * Execute the pipeline with the given input and context.

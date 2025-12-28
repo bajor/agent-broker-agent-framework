@@ -121,13 +121,12 @@ val agent = Agent("CodeGen")
 ```
 agent-broker-agent-framework/
 ├── common/           # Foundation: types, config, RabbitMQ, logging, A2A protocol
-├── dsl/              # Agent Pipeline DSL (AgentBuilder, Process, PipelineStep)
+├── dsl/              # Agent Pipeline DSL (AgentBuilder, Process, PipelineStep, AgentRuntime)
 ├── tools/            # Tool implementations (LlmTool, PythonExecutorTool)
-├── pipeline/         # Agent definitions (Preprocessor, Refiner, etc.)
-├── runners/          # Distributed agent runners (ZIOAppDefault entry points)
-├── examples/         # Example agents using the DSL
+├── examples/         # DSL-based agents (PreprocessorMain, CodeGenMain, ExplainerMain, RefinerMain)
 ├── submit/           # Submit CLI service
-└── scripts/          # Utility scripts
+├── scripts/          # Utility scripts
+└── conductor/        # Project management and documentation
 ```
 
 ## Make Commands
